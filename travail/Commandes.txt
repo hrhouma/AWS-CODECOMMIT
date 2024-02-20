@@ -1,0 +1,139 @@
+
+aws configure get region
+
+aws cloudformation create-stack --stack-name CreateBucket --template-body file://S3.yaml
+
+aws cloudformation create-stack --stack-name CreateBucket --template-body file://S3.yaml
+
+wget https://aws-tc-largeobjects.s3.us-west-2.amazonaws.com/CUR-TF-200-ACACAD-2-91555/14-lab-mod10-challenge-CFn/s3/static-website.zip
+
+unzip static-website.zip -d static
+
+cd static
+
+aws s3api put-bucket-ownership-controls --bucket createbucket-s3bucket-rxikalozj2ql --ownership-controls Rules=[{ObjectOwnership=BucketOwnerPreferred}]
+
+aws s3api put-public-access-block --bucket createbucket-s3bucket-rxikalozj2ql --public-access-block-configuration "BlockPublicAcls=false,RestrictPublicBuckets=false,IgnorePublicAcls=false,BlockPublicPolicy=false"
+aws s3 cp --recursive . s3://createbucket-s3bucket-rxikalozj2ql/ --acl public-read
+
+  
+AWSTemplateFormatVersion: "2010-09-09"
+Description: cafe S3 template
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      WebsiteConfiguration:
+        IndexDocument: index.html
+Outputs:
+  WebsiteURL:
+    Value: !GetAtt
+      - S3Bucket
+      - WebsiteURL
+    Description: URL for website hosted on S3
+
+
+
+cd ../
+
+aws cloudformation validate-template --template-body file://S3.yaml
+
+aws cloudformation update-stack --stack-name CreateBucket --template-body file://S3.yaml
+
+git clone https://git-codecommit.us-east-1.amazonaws.com/v1/repos/CFTemplatesRepo
+
+
+
+
+cp template1.yaml cafe-network.yaml
+
+sed -i '2s/.*/Description: Network layer for the cafe/' cafe-network.yaml
+
+aws cloudformation validate-template --template-body file://cafe-network.yaml
+
+git add templates/cafe-network.yaml
+
+git commit -m 'initial commit of network template' templates/cafe-network.yaml
+
+git push
+
+
+
+cafe-network.yaml 
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: Network layer for the cafe
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Cafe VPC
+
+  IGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Cafe IGW
+
+  VPCtoIGWConnection:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn:
+      - IGW
+      - VPC
+    Properties:
+      InternetGatewayId: !Ref IGW
+      VpcId: !Ref VPC
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Cafe Public Route Table
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn:
+      - PublicRouteTable
+      - VPCtoIGWConnection
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: true
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs
+          Ref: AWS::Region
+      Tags:
+        - Key: Name
+          Value: Cafe Public Subnet
+
+  PublicRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - PublicRouteTable
+      - PublicSubnet
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+
+
+
