@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Network layer for the cafe
+
 Resources:
   VPC:
     Type: AWS::EC2::VPC
